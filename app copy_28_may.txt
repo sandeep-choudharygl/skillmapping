@@ -1,0 +1,398 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import os
+import base64
+
+# Custom CSS to increase the width of the expander
+st.markdown("""
+    <style>
+    .streamlit-expander {
+        width: 150%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Initialize session state to store data
+if 'skill_mapping_data' not in st.session_state:
+    st.session_state.skill_mapping_data = []
+if 'employee_details_data' not in st.session_state:
+    st.session_state.employee_details_data = []
+if 'subdomain_options' not in st.session_state:
+    st.session_state.subdomain_options = []
+if 'edit_employee_data' not in st.session_state:
+    st.session_state.edit_employee_data = {}
+if 'selected_domain' not in st.session_state:
+    st.session_state.selected_domain = 'Not Applicable'
+if 'selected_subdomain' not in st.session_state:
+    st.session_state.selected_subdomain = 'Not Applicable'
+if 'selected_expertise' not in st.session_state:
+    st.session_state.selected_expertise = 'Not Applicable'
+
+# Define example domains and subdomains
+domains = {
+    'Automotive': [
+        'Infotainment Systems', 'Advanced Driver Assistance Systems (ADAS)', 'Connectivity and Telematics',
+        'Autonomous Driving', 'Vehicle Cybersecurity', 'Diagnostic and Maintenance Systems',
+        'Vehicle Performance Optimization', 'Vehicular Data Analytics', 'Aftermarket Services'
+    ],
+    'Communication Service Providers': [
+        'Video & broadband', 'Network, billing & operations', 'OTT & omnichannel media experiences',
+        'Unified communications'
+    ],
+    'Consumer': [
+        'E-commerce', 'Omnichannel', 'Mobile-Commerce', 'InStore Experience', 'Supply Chain',
+        'Warehouse Management'
+    ],
+    'Finance': [
+        'Accounting', 'Billing and Invoicing', 'Financial Analytics', 'BFSI', 'Financial Reporting',
+        'Budgeting and Financial Planning', 'Asset Management', 'Investment Management', 'Audit and Compliance',
+        'Risk Management', 'Mortgages', 'Payment Gateways'
+    ],
+    'Healthcare': [
+        'Practice Management Systems (Hospital Administration)', 'Life Sciences', 'Pharmacy', 'EMR',
+        'Compliances', 'Medical Devices', 'Software as Medical Device', 'Therapeutic Apps'
+    ],
+    'Industrial': [
+        'Manufacturing', 'Energy', 'Utilities', 'Transportation & Logistics', 'Construction & Engineering'
+    ],
+    'Media & Entertainment': [
+        'Broadcasting', 'Display Device & Platform farms', 'Subscription Services (Financial Planning against it)',
+        'E-learning', 'Publishing Content', 'Content Management'
+    ],
+    'Network Providers': [
+        'OSS & BSS systems engineering', 'Network systems & applications engineering',
+        '5G Test Lab (Orchestration, Testing, Automation)', 'End-to-end IoT platform engineering',
+        'Embedded platforms & certifications'
+    ],
+    'Technology': [
+        'SaaS', 'PaaS', 'IaaS', 'Cloud Transformation/Platforms', 'Web3/Blockchain', 'Fintech',
+        'API/Identity Management', 'Artificial Intelligence', 'Machine Learning', 'Virtual Reality (VR)',
+        'Augmented Reality (AR)', 'IoT', 'Talent Cloud Platform'
+    ]
+}
+expertise_levels = ['Expert', 'Intermediate', 'Beginner', 'Not Applicable']
+
+def update_subdomain_options():
+    selected_domain = st.session_state.selected_domain
+    st.session_state.subdomain_options = domains.get(selected_domain, [])
+
+def add_skill_mapping(domain, subdomain, expertise_level):
+    st.session_state.skill_mapping_data.append({
+        'Domain': domain,
+        'Subdomain': subdomain,
+        'Expertise': expertise_level
+    })
+
+def remove_skill_mapping(index):
+    if index < len(st.session_state.skill_mapping_data):
+        del st.session_state.skill_mapping_data[index]
+
+def add_employee_details(emp_id, emp_first_name, emp_last_name, rm, project, band, bu, du_owner, city, state):
+    st.session_state.employee_details_data.append({
+        'EMP ID': emp_id,
+        'First Name': emp_first_name,
+        'Last Name': emp_last_name,
+        'RM': rm,
+        'Project': project,
+        'Band': band,
+        'BU': bu,
+        'DU Owner': du_owner,
+        'City': city,
+        'State': state
+    })
+
+def save_to_csv(file_name='database_skill_mapping.csv'):
+    emp_details_df = pd.DataFrame(st.session_state.employee_details_data)
+    if emp_details_df.empty:
+        st.error("No employee details to save.")
+        return
+    
+    if not st.session_state.skill_mapping_data:
+        st.error("Please add at least one domain skill mapping for the employee.")
+        return
+    
+    mappings_df = pd.DataFrame(st.session_state.skill_mapping_data)
+    combined_df = pd.concat([emp_details_df.assign(**mapping) for mapping in mappings_df.to_dict('records')], ignore_index=True)
+
+    if os.path.exists(file_name):
+        existing_data = pd.read_csv(file_name)
+        combined_df = pd.concat([existing_data, combined_df], ignore_index=True)
+    combined_df.to_csv(file_name, index=False)
+    st.success("Data saved successfully.")
+
+def generate_download_link(df, filename="employee_details.csv"):
+    csv = df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()
+    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">Download CSV file</a>'
+    return href
+
+def generate_unique_employee_csv():
+    csv_file = 'database_skill_mapping.csv'
+    if os.path.exists(csv_file):
+        data = pd.read_csv(csv_file)
+
+        # Normalize column names
+        data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
+        data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})  # Renaming columns for consistency
+
+        # Exclude domain, subdomain, and expertise columns and get unique employee details
+        columns_to_exclude = ['domain', 'subdomain', 'expertise']
+        unique_employee_details = data.drop(columns=columns_to_exclude, errors='ignore')
+        unique_employee_details = unique_employee_details.drop_duplicates(subset=['emp_id', 'first_name', 'last_name', 'rm', 'project', 'band', 'bu', 'du_owner', 'city', 'state'])
+
+        unique_employee_csv = 'unique_employee_details.csv'
+        unique_employee_details.to_csv(unique_employee_csv, index=False)
+        st.success("Unique employee details saved successfully.")
+        return generate_download_link(unique_employee_details, unique_employee_csv)
+    else:
+        st.error("No data found. Please check the database.")
+        return None
+
+# Helper function to convert names to hyperlinks
+def convert_names_to_hyperlinks(df, name_col='first_name', link_col='emp_id'):
+    if name_col in df.columns:
+        df[name_col] = df.apply(lambda row: f'<a href="?emp_id={row[link_col]}&page=add">{row[name_col]}</a>', axis=1)
+    return df
+
+# Helper function to render dataframe with hyperlinks
+def render_dataframe_with_hyperlinks(df):
+    return df.to_html(escape=False, index=False)
+
+# Load CSV file and normalize column names
+def load_and_normalize_csv(csv_file):
+    if os.path.exists(csv_file):
+        data = pd.read_csv(csv_file)
+        data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
+        data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})  # Renaming columns for consistency
+        return data
+    else:
+        st.error(f"File {csv_file} not found.")
+        return pd.DataFrame()
+
+# Sidebar navigation
+st.sidebar.title("Navigation")
+main_menu = st.sidebar.radio("Main Menu", ["Home", "Product Team NA Details"])
+
+# Handle redirection based on query parameters
+query_params = st.experimental_get_query_params()
+if 'page' in query_params and query_params['page'][0] == 'add':
+    main_menu = "Product Team NA Details"
+    sub_menu = "Add Product Team Member"
+    emp_id = int(query_params['emp_id'][0])
+    csv_file = 'database_skill_mapping.csv'
+    data = load_and_normalize_csv(csv_file)
+    emp_data = data[data['emp_id'] == emp_id].iloc[0].to_dict()
+    st.session_state.edit_employee_data = emp_data
+    st.session_state.selected_domain = emp_data.get('domain', 'Not Applicable')
+    update_subdomain_options()
+    st.session_state.selected_subdomain = emp_data.get('subdomain', 'Not Applicable')
+    st.session_state.selected_expertise = emp_data.get('expertise', 'Not Applicable')
+    st.experimental_set_query_params()  # Clear query params after use
+else:
+    sub_menu = st.sidebar.radio("Sub Menu", ["Basic Details", "Employee Details with Domain", "Add Product Team Member"])
+
+if main_menu == "Home":
+    st.title('Skill Mapping Analysis')
+    st.write("### Select Domain")
+
+    csv_file = 'database_skill_mapping.csv'
+    details_df = load_and_normalize_csv(csv_file)
+
+    if 'domain' in details_df.columns:
+        unique_domains = details_df['domain'].unique()
+        selected_domain = st.selectbox("Domain", unique_domains)
+        
+        if selected_domain:
+            filtered_df = details_df[details_df['domain'] == selected_domain]
+
+            if 'subdomain' in filtered_df.columns and 'expertise' in filtered_df.columns:
+                expertise_counts = filtered_df[filtered_df['expertise'].isin(['Expert', 'Intermediate'])].groupby(['subdomain', 'expertise']).size().unstack(fill_value=0).reset_index()
+
+                # Ensure the DataFrame has columns for both 'Expert' and 'Intermediate'
+                expertise_counts = expertise_counts.reindex(columns=['subdomain', 'Expert', 'Intermediate'], fill_value=0)
+                expertise_counts.columns = ['Subdomain', 'Expert', 'Intermediate']
+
+                # Add column-wise total
+                total_experts = expertise_counts['Expert'].sum()
+                total_intermediates = expertise_counts['Intermediate'].sum()
+                total_row = pd.DataFrame([['Total', total_experts, total_intermediates]], columns=['Subdomain', 'Expert', 'Intermediate'])
+                expertise_counts = pd.concat([expertise_counts, total_row], ignore_index=True)
+
+                # Summary Table
+                st.write("### Summary Table")
+                st.table(expertise_counts)
+
+                # Bar Chart
+                st.write("### Bar Chart")
+                fig = px.bar(
+                    expertise_counts[expertise_counts['Subdomain'] != 'Total'],  # Exclude the Total row from the bar chart
+                    x='Subdomain',
+                    y=['Expert', 'Intermediate'],
+                    title=f'Number of Experts and Intermediates in {selected_domain}',
+                    labels={'value': 'Count', 'variable': 'Expertise Level'},
+                    barmode='group'
+                )
+                st.plotly_chart(fig)
+
+                # Detailed View with Subdomains
+                st.write("### Detailed View with Subdomains")
+                if 'Subdomain' in expertise_counts.columns:
+                    for i, row in expertise_counts.iterrows():
+                        if row['Subdomain'] != 'Total':
+                            subdomain = row['Subdomain']
+                            experts = row['Expert']
+                            intermediates = row['Intermediate']
+                            total = experts + intermediates
+                            with st.expander(f"{subdomain} ({total} Total: {experts} Experts, {intermediates} Intermediates)"):
+                                subdomain_table = filtered_df[filtered_df['subdomain'] == subdomain][['emp_id', 'first_name', 'last_name', 'rm', 'project', 'band', 'bu', 'du_owner', 'city', 'state', 'expertise']]
+                                subdomain_table = convert_names_to_hyperlinks(subdomain_table)
+                                st.write(f"#### Subdomain: {subdomain}")
+                                st.markdown(render_dataframe_with_hyperlinks(subdomain_table), unsafe_allow_html=True)
+                else:
+                    st.error("The 'subdomain' column is not present in the summary data.")
+            else:
+                st.error("The required columns 'subdomain' and 'expertise' are not present in the filtered data.")
+    else:
+        st.error("The required 'domain' column is not present in the data.")
+
+elif main_menu == "Product Team NA Details":
+    if sub_menu == "Basic Details":
+        st.title("Basic Details")
+
+        csv_file = 'database_skill_mapping.csv'
+        data = pd.read_csv(csv_file)
+        data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
+        data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})
+
+        # Exclude domain, subdomain, and expertise columns and get unique employee details
+        columns_to_exclude = ['domain', 'subdomain', 'expertise']
+        basic_details = data.drop(columns=columns_to_exclude, errors='ignore').drop_duplicates(subset=['emp_id', 'first_name', 'last_name', 'rm', 'project', 'band', 'bu', 'du_owner', 'city', 'state'])
+        #basic_details = convert_names_to_hyperlinks(basic_details)
+
+        st.write("### Basic Employee Details")
+        edited_basic_details = st.experimental_data_editor(basic_details, num_rows="dynamic")
+        
+        # Optionally save the edited data
+        if st.button("Save Basic Details"):
+            st.session_state.employee_details_data = edited_basic_details.to_dict('records')
+            save_to_csv()
+                
+
+        if st.button("Generate Unique Employee Details CSV"):
+            download_link = generate_unique_employee_csv()
+            if download_link:
+                st.markdown(download_link, unsafe_allow_html=True)
+
+    elif sub_menu == "Employee Details with Domain":
+        st.title("Employee Details with Domain")
+
+        # File uploader for new CSV
+        uploaded_file = st.file_uploader("Upload a new CSV file", type="csv")
+        if uploaded_file is not None:
+            details_df = pd.read_csv(uploaded_file)
+            details_df.to_csv('database_skill_mapping.csv', index=False)
+            st.success("New CSV file uploaded and saved successfully.")
+
+        csv_file = 'database_skill_mapping.csv'
+        data = pd.read_csv(csv_file)
+        data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
+        data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})
+        data = data.iloc[::-1]  # Reverse the DataFrame to show the most recent records first
+
+        #data = convert_names_to_hyperlinks(data)
+        st.write("### Employee Details with Domain")
+        edited_employee_details = st.experimental_data_editor(data, num_rows="dynamic")
+        if st.button("Save Employee Details with Domain"):
+            st.session_state.employee_details_data = edited_employee_details.to_dict('records')
+            save_to_csv()
+       
+    st.markdown(generate_download_link(data), unsafe_allow_html=True)
+
+    elif sub_menu == "Add Product Team Member":
+        st.title("Add Product Team Member")
+
+        if st.session_state.edit_employee_data:
+            emp_data = st.session_state.edit_employee_data
+            emp_id = emp_data.get('emp_id', '')
+            first_name = emp_data.get('first_name', '')
+            last_name = emp_data.get('last_name', '')
+            rm = emp_data.get('rm', '')
+            project = emp_data.get('project', '')
+            band = emp_data.get('band', '')
+            bu = emp_data.get('bu', '')
+            du_owner = emp_data.get('du_owner', '')
+            state = emp_data.get('state', '')
+            city = emp_data.get('city', '')
+            st.session_state.selected_domain = emp_data.get('domain', 'Not Applicable')
+            update_subdomain_options()
+            st.session_state.selected_subdomain = emp_data.get('subdomain', 'Not Applicable')
+            st.session_state.selected_expertise = emp_data.get('expertise', 'Not Applicable')
+        else:
+            emp_id = ''
+            first_name = ''
+            last_name = ''
+            rm = ''
+            project = ''
+            band = ''
+            bu = ''
+            du_owner = ''
+            state = ''
+            city = ''
+
+        with st.form(key='EmployeeForm'):
+            emp_id = st.text_input("Employee ID*", value=emp_id)
+            first_name = st.text_input("First Name*", value=first_name)
+            last_name = st.text_input("Last Name*", value=last_name)
+            rm = st.text_input("Resource Manager (RM)*", value=rm)
+            project = st.text_input("Project*", value=project)
+            band = st.text_input("Band*", value=band)
+            bu = st.text_input("Business Unit (BU)*", value=bu)
+            du_owner = st.text_input("Delivery Unit Owner*", value=du_owner)
+            state = st.text_input("State*", value=state)
+            city = st.text_input("City", value=city)
+            submit = st.form_submit_button("Submit Employee Details")
+            if submit:
+                if not emp_id.isdigit():
+                    st.error("Employee ID should be a numeric value.")
+                elif not band.isdigit():
+                    st.error("Band should be a numeric value.")
+                elif not first_name.strip():
+                    st.error("First Name is required.")
+                elif not last_name.strip():
+                    st.error("Last Name is required.")
+                elif not rm.strip():
+                    st.error("Resource Manager (RM) is required.")
+                elif not project.strip():
+                    st.error("Project is required.")
+                elif not bu.strip():
+                    st.error("Business Unit (BU) is required.")
+                elif not du_owner.strip():
+                    st.error("Delivery Unit Owner is required.")
+                elif not state.strip():
+                    st.error("State is required.")
+                else:
+                    add_employee_details(int(emp_id), first_name, last_name, rm, project, int(band), bu, du_owner, city, state)
+                    st.session_state.edit_employee_data = {}
+
+        st.write("## Domain and Subdomain Mapping")
+        selected_domain = st.selectbox("Select Domain", ['Not Applicable'] + list(domains.keys()), key='domain_select', index=(['Not Applicable'] + list(domains.keys())).index(st.session_state.selected_domain))
+        update_subdomain_options()
+        selected_subdomain = st.selectbox("Select Subdomain", ['Not Applicable'] + st.session_state.subdomain_options, key='subdomain_select', index=(['Not Applicable'] + st.session_state.subdomain_options).index(st.session_state.selected_subdomain))
+        selected_expertise = st.selectbox("Expertise Level", expertise_levels, key='expertise_select', index=expertise_levels.index(st.session_state.selected_expertise))
+        if st.button("Add Mapping"):
+            add_skill_mapping(selected_domain, selected_subdomain, selected_expertise)
+            st.success("Mapping added successfully.")
+
+        # Display added mappings in a table with option to remove
+        if st.session_state.skill_mapping_data:
+            st.write("### Added Mappings")
+            mappings_table = pd.DataFrame(st.session_state.skill_mapping_data)
+            st.write("Current Mappings:")
+            for i, row in mappings_table.iterrows():
+                st.write(f"Domain: {row['Domain']}, Subdomain: {row['Subdomain']}, Expertise: {row['Expertise']}")
+                if st.button(f"Remove Mapping {i}"):
+                    remove_skill_mapping(i)
+
+        if st.button("Save to CSV"):
+            save_to_csv()

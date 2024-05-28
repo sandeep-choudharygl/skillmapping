@@ -1,0 +1,204 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import os
+import base64
+
+# Initialize session state to store data
+if 'skill_mapping_data' not in st.session_state:
+    st.session_state.skill_mapping_data = []
+if 'employee_details_data' not in st.session_state:
+    st.session_state.employee_details_data = []
+if 'subdomain_options' not in st.session_state:
+    st.session_state.subdomain_options = []
+
+# Define example domains and subdomains
+domains = {
+    'Automotive': [
+        'Infotainment Systems', 'Advanced Driver Assistance Systems (ADAS)', 'Connectivity and Telematics', 
+        'Autonomous Driving', 'Vehicle Cybersecurity', 'Diagnostic and Maintenance Systems', 
+        'Vehicle Performance Optimization', 'Vehicular Data Analytics', 'Aftermarket Services'
+    ],
+    'Communication Service Providers': [
+        'Video & broadband', 'Network, billing & operations', 'OTT & omnichannel media experiences', 
+        'Unified communications'
+    ],
+    'Consumer': [
+        'E-commerce', 'Omnichannel', 'Mobile-Commerce', 'InStore Experience', 'Supply Chain', 
+        'Warehouse Management'
+    ],
+    'Finance': [
+        'Accounting', 'Billing and Invoicing', 'Financial Analytics', 'BFSI', 'Financial Reporting', 
+        'Budgeting and Financial Planning', 'Asset Management', 'Investment Management', 'Audit and Compliance', 
+        'Risk Management', 'Mortgages', 'Payment Gateways'
+    ],
+    'Healthcare': [
+        'Practice Management Systems (Hospital Administration)', 'Life Sciences', 'Pharmacy', 'EMR', 
+        'Compliances', 'Medical Devices', 'Software as Medical Device', 'Therapeutic Apps'
+    ],
+    'Industrial': [
+        'Manufacturing', 'Energy', 'Utilities', 'Transportation & Logistics', 'Construction & Engineering'
+    ],
+    'Media & Entertainment': [
+        'Broadcasting', 'Display Device & Platform farms', 'Subscription Services (Financial Planning against it)', 
+        'E-learning', 'Publishing Content', 'Content Management'
+    ],
+    'Network Providers': [
+        'OSS & BSS systems engineering', 'Network systems & applications engineering', 
+        '5G Test Lab (Orchestration, Testing, Automation)', 'End-to-end IoT platform engineering', 
+        'Embedded platforms & certifications'
+    ],
+    'Technology': [
+        'SaaS', 'PaaS', 'IaaS', 'Cloud Transformation/Platforms', 'Web3/Blockchain', 'Fintech', 
+        'API/Identity Management', 'Artificial Intelligence', 'Machine Learning', 'Virtual Reality (VR)', 
+        'Augmented Reality (AR)', 'IoT', 'Talent Cloud Platform'
+    ]
+}
+expertise_levels = ['Expert', 'Intermediate', 'Beginner', 'Not Applicable']
+
+def update_subdomain_options():
+    selected_domain = st.session_state.selected_domain
+    st.session_state.subdomain_options = domains.get(selected_domain, [])
+
+def add_skill_mapping(domain, subdomain, expertise_level):
+    st.session_state.skill_mapping_data.append({
+        'Domain': domain,
+        'Subdomain': subdomain,
+        'Expertise': expertise_level
+    })
+
+def add_employee_details(emp_id, emp_first_name, emp_last_name, rm, project, band, bu, du_owner, city, state):
+    st.session_state.employee_details_data.append({
+        'EMP ID': emp_id,
+        'First Name': emp_first_name,
+        'Last Name': emp_last_name,
+        'RM': rm,
+        'Project': project,
+        'Band': band,
+        'BU': bu,
+        'DU Owner': du_owner,
+        'City': city,
+        'State': state
+    })
+
+def save_to_csv(file_name='database_skill_mapping.csv'):
+    emp_details_df = pd.DataFrame(st.session_state.employee_details_data)
+    if emp_details_df.empty:
+        st.error("No employee details to save.")
+        return
+    
+    if st.session_state.skill_mapping_data:
+        mappings_df = pd.DataFrame(st.session_state.skill_mapping_data)
+        combined_df = pd.concat([emp_details_df.assign(**mapping) for mapping in mappings_df.to_dict('records')], ignore_index=True)
+    else:
+        combined_df = emp_details_df
+
+    if os.path.exists(file_name):
+        existing_data = pd.read_csv(file_name)
+        combined_df = pd.concat([existing_data, combined_df], ignore_index=True)
+    combined_df.to_csv(file_name, index=False)
+    st.success("Data saved successfully.")
+
+def generate_download_link(df, filename="employee_details.csv"):
+    csv = df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()
+    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">Download CSV file</a>'
+    return href
+
+# Sidebar navigation
+st.sidebar.title("Navigation")
+page = st.sidebar.selectbox("Choose a page:", ["Home", "Product Team NA Details", "Add Product Team Person with Skills"])
+
+if page == "Home":
+    st.title('Skill Mapping Analysis')
+    st.write("### Select Domain")
+
+    csv_file = 'database_skill_mapping.csv'
+    if os.path.exists(csv_file):
+        details_df = pd.read_csv(csv_file)
+
+        # Normalize column names
+        details_df.columns = details_df.columns.str.strip().str.lower().str.replace(' ', '_')
+
+        if 'domain' in details_df.columns:
+            unique_domains = details_df['domain'].unique()
+            selected_domain = st.selectbox("Domain", unique_domains)
+            
+            if selected_domain:
+                filtered_df = details_df[details_df['domain'] == selected_domain]
+                expertise_counts = filtered_df[filtered_df['expertise'].isin(['Expert', 'Intermediate'])].groupby(['subdomain', 'expertise']).size().unstack(fill_value=0).reset_index()
+                
+                # Ensure the DataFrame has columns for both 'Expert' and 'Intermediate'
+                expertise_counts = expertise_counts.reindex(columns=['subdomain', 'Expert', 'Intermediate'], fill_value=0)
+                expertise_counts.columns = ['Subdomain', 'Expert', 'Intermediate']
+
+                # Add column-wise total
+                total_experts = expertise_counts['Expert'].sum()
+                total_intermediates = expertise_counts['Intermediate'].sum()
+                total_row = pd.DataFrame([['Total', total_experts, total_intermediates]], columns=['Subdomain', 'Expert', 'Intermediate'])
+                expertise_counts = pd.concat([expertise_counts, total_row], ignore_index=True)
+
+                st.write("### Detailed View with Subdomains")
+                st.table(expertise_counts)
+
+                st.write("### Bar Chart")
+                fig = px.bar(
+                    expertise_counts[expertise_counts['Subdomain'] != 'Total'],  # Exclude the Total row from the bar chart
+                    x='Subdomain',
+                    y=['Expert', 'Intermediate'],
+                    title=f'Number of Experts and Intermediates in {selected_domain}',
+                    labels={'value': 'Count', 'variable': 'Expertise Level'},
+                    barmode='group'
+                )
+                st.plotly_chart(fig)
+        else:
+            st.error("The required 'domain' column is not present in the data.")
+    else:
+        st.error(f"File {csv_file} not found.")
+
+elif page == "Product Team NA Details":
+    st.title("Product Team NA Details")
+    
+    # File uploader for new CSV
+    uploaded_file = st.file_uploader("Upload a new CSV file", type="csv")
+    if uploaded_file is not None:
+        details_df = pd.read_csv(uploaded_file)
+        details_df.to_csv('database_skill_mapping.csv', index=False)
+        st.success("New CSV file uploaded and saved successfully.")
+    
+    csv_file = 'database_skill_mapping.csv'
+    if os.path.exists(csv_file):
+        data = pd.read_csv(csv_file)
+        st.dataframe(data)
+        st.markdown(generate_download_link(data), unsafe_allow_html=True)
+    else:
+        st.error("No data found. Please check the database.")
+
+elif page == "Add Product Team Person with Skills":
+    st.title("Add Product Team Person with Skills")
+    with st.form(key='EmployeeForm'):
+        emp_id = st.text_input("Employee ID")
+        first_name = st.text_input("First Name")
+        last_name = st.text_input("Last Name")
+        rm = st.text_input("Resource Manager (RM)")
+        project = st.text_input("Project")
+        band = st.text_input("Band")
+        bu = st.text_input("Business Unit (BU)")
+        du_owner = st.text_input("Delivery Unit Owner")
+        city = st.text_input("City")
+        state = st.text_input("State")
+        submit = st.form_submit_button("Submit Employee Details")
+        if submit:
+            add_employee_details(emp_id, first_name, last_name, rm, project, band, bu, du_owner, city, state)
+
+    st.write("## Domain and Subdomain Mapping")
+    st.session_state.selected_domain = st.selectbox("Select Domain", list(domains.keys()))
+    update_subdomain_options()
+    selected_subdomain = st.selectbox("Select Subdomain", st.session_state.subdomain_options)
+    selected_expertise = st.selectbox("Expertise Level", expertise_levels)
+    if st.button("Add Mapping"):
+        add_skill_mapping(st.session_state.selected_domain, selected_subdomain, selected_expertise)
+        st.success("Mapping added successfully.")
+
+    if st.button("Save to CSV"):
+        save_to_csv()
