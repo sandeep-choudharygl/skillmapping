@@ -93,7 +93,11 @@ else:
                 filtered_df = details_df[details_df['domain'] == selected_domain]
 
                 if 'subdomain' in filtered_df.columns and 'expertise' in filtered_df.columns:
-                    expertise_counts = filtered_df[filtered_df['expertise'].isin(['Expert', 'Intermediate'])].groupby(['subdomain', 'expertise']).size().unstack(fill_value=0).reset_index()
+                    # Filter for Expert and Intermediate levels only
+                    filtered_expertise_df = filtered_df[filtered_df['expertise'].isin(['Expert', 'Intermediate'])]
+                    
+                    # Group and count the expertise levels per subdomain
+                    expertise_counts = filtered_expertise_df.groupby(['subdomain', 'expertise']).size().unstack(fill_value=0).reset_index()
 
                     # Ensure the DataFrame has columns for both 'Expert' and 'Intermediate'
                     expertise_counts = expertise_counts.reindex(columns=['subdomain', 'Expert', 'Intermediate'], fill_value=0)
@@ -151,7 +155,8 @@ else:
 
         # Exclude domain, subdomain, and expertise columns and get unique employee details
         columns_to_exclude = ['domain', 'subdomain', 'expertise']
-        basic_details = data.drop(columns=columns_to_exclude, errors='ignore').drop_duplicates(subset=['first_name', 'last_name', 'rm', 'project', 'bu', 'years_of_experience'])
+        subset_columns = [col for col in ['first_name', 'last_name', 'rm', 'project', 'bu', 'years_of_experience'] if col in data.columns]
+        basic_details = data.drop(columns=columns_to_exclude, errors='ignore').drop_duplicates(subset=subset_columns)
 
         st.write("### Basic Employee Details")
         st.dataframe(basic_details)
