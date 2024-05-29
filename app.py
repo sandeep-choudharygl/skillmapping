@@ -8,7 +8,7 @@ import pytz
 
 # Define the desired username and password
 DESIRED_USERNAME = "admin"
-DESIRED_PASSWORD = "y$9]0$ZWzfkh\{"
+DESIRED_PASSWORD = "y$9]0$ZWzfkh"
 
 # Function to authenticate user
 def authenticate(username, password):
