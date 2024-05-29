@@ -4,6 +4,7 @@ import plotly.express as px
 import os
 import base64
 from datetime import datetime
+import pytz
 
 # Define the desired username and password
 DESIRED_USERNAME = "admin"
@@ -52,6 +53,12 @@ def save_to_csv(data, filename):
     data.to_csv(filename, index=False)
     st.success(f"Data saved to {filename}")
 
+# Convert time to EST and format it
+def format_time_to_est(time):
+    est = pytz.timezone('US/Eastern')
+    time_est = time.astimezone(est)
+    return time_est.strftime('%Y-%m-%d %I:%M %p (EST)')
+
 # Show login modal if not logged in
 if not st.session_state.get("logged_in"):
     show_login_modal()
@@ -70,7 +77,8 @@ else:
 
         # Display message if data was updated
         if st.session_state.last_update_time:
-            st.info(f"Data was updated on {st.session_state.last_update_time.strftime('%Y-%m-%d %H:%M')}")
+            formatted_time = format_time_to_est(st.session_state.last_update_time)
+            st.info(f"Data was updated on {formatted_time}")
 
         st.write("### Select Domain")
 
@@ -177,7 +185,6 @@ else:
             
             # Store the update time
             st.session_state.last_update_time = datetime.now()
-            st.experimental_rerun()
 
         # Display the dataframe
         data = pd.DataFrame(st.session_state.employee_details_data)
