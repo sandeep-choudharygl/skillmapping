@@ -172,13 +172,15 @@ else:
             new_data = new_data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})
             
             # Update the existing data with the new data
-            data.update(new_data)
-            save_to_csv(data, csv_file)
+            st.session_state.employee_details_data = new_data.to_dict(orient='records')
+            save_to_csv(new_data, csv_file)
             
             # Store the update time
             st.session_state.last_update_time = datetime.now()
+            st.experimental_rerun()
 
         # Display the dataframe
+        data = pd.DataFrame(st.session_state.employee_details_data)
         st.dataframe(data)
 
         # Download CSV button
