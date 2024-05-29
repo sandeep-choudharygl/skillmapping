@@ -82,7 +82,7 @@ else:
 
         st.write("### Select Domain")
 
-        csv_file = 'final_transformed_data.csv'
+        csv_file = 'database_skill_mapping.csv'
         details_df = load_and_normalize_csv(csv_file)
 
         if 'domain' in details_df.columns:
@@ -131,7 +131,7 @@ else:
                                 intermediates = row['Intermediate']
                                 total = experts + intermediates
                                 with st.expander(f"{subdomain} ({total} Total: {experts} Experts, {intermediates} Intermediates)"):
-                                    subdomain_table = filtered_df[(filtered_df['subdomain'] == subdomain) & (filtered_df['expertise'].isin(['Expert', 'Intermediate']))]
+                                    subdomain_table = filtered_df[filtered_df['subdomain'] == subdomain]
                                     st.write(f"#### Subdomain: {subdomain}")
                                     st.dataframe(subdomain_table)
                     else:
@@ -144,14 +144,14 @@ else:
     elif main_menu == "Basic Details":
         st.title("Basic Details")
 
-        csv_file = 'final_transformed_data.csv'
+        csv_file = 'database_skill_mapping.csv'
         data = pd.read_csv(csv_file)
         data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
         data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})
 
         # Exclude domain, subdomain, and expertise columns and get unique employee details
         columns_to_exclude = ['domain', 'subdomain', 'expertise']
-        basic_details = data.drop(columns=columns_to_exclude, errors='ignore').drop_duplicates(subset=['first_name', 'last_name', 'rm', 'project', 'bu', 'years_of_experience'])
+        basic_details = data.drop(columns=columns_to_exclude, errors='ignore').drop_duplicates(subset=['emp_id', 'first_name', 'last_name', 'rm', 'project', 'band', 'bu', 'du_owner', 'city', 'state'])
 
         st.write("### Basic Employee Details")
         st.dataframe(basic_details)
@@ -164,7 +164,7 @@ else:
     elif main_menu == "Employee Details with Domain":
         st.title("Employee Details with Domain")
 
-        csv_file = 'final_transformed_data.csv'
+        csv_file = 'database_skill_mapping.csv'
         data = pd.read_csv(csv_file)
         data.columns = data.columns.str.strip().str.lower().str.replace(' ', '_')
         data = data.rename(columns={'first name': 'first_name', 'last name': 'last_name'})
